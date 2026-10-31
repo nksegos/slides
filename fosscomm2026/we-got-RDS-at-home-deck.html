@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>We got RDS at home — OSS DB Stack Deck</title>
+<!--
+  ============================================================
+  HOW TO EXPORT THIS DECK TO PDF (no office suite involved):
+  ============================================================
+     chromium --headless --disable-gpu \
+       --no-pdf-header-footer \
+       --print-to-pdf=deck.pdf slides.html
+
+  Each <section class="slide"> is exactly 1280x720 and maps to one
+  PDF page. Page breaks are handled by CSS.
+
+  Speaker notes are in the comments above each slide — they do not
+  render. Search for "NOTES:" in this file.
+  ============================================================
+-->
+<style>
+  :root {
+    --bg: #11141c;
+    --panel: #1a1f2b;
+    --panel2: #222839;
+    --ink: #e8ebf2;
+    --muted: #9aa3b5;
+    --accent: #6d4aff;
+    --accent2: #4ad3ff;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+
+  @page { size: 1280px 720px; margin: 0; }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    page-break-after: always;
+    break-after: page;
+    padding: 60px 80px;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  /* chrome (footer) */
+  .footer {
+    position: absolute;
+    bottom: 28px;
+    left: 80px; right: 80px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--muted);
+  }
+  .pagenum { font-family: var(--mono); color: var(--muted); }
+
+  /* typography */
+  h1 { font-size: 64px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; }
+  h2 { font-size: 44px; line-height: 1.15; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 36px; }
+  h2 .accent { color: var(--accent2); }
+  .sub { font-size: 26px; color: var(--muted); margin-top: 18px; }
+  p, li { font-size: 24px; line-height: 1.55; }
+  ul { list-style: none; }
+  ul li { padding-left: 36px; position: relative; margin-bottom: 18px; }
+  ul li::before { content: "▸"; position: absolute; left: 0; color: var(--accent2); font-weight: 700; }
+  code, .mono { font-family: var(--mono); }
+  code.inline {
+    background: var(--panel2); padding: 2px 10px; border-radius: 6px;
+    font-size: 0.85em; color: var(--accent2); white-space: nowrap;
+  }
+  .dim { color: var(--muted); }
+  .strong-good { color: var(--good); font-weight: 600; }
+  .strong-bad { color: var(--bad); font-weight: 600; }
+
+  /* kicker */
+  .kicker {
+    font-family: var(--mono); font-size: 18px; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+  }
+
+  /* panels */
+  .cards { display: grid; gap: 20px; }
+  .cards.c2 { grid-template-columns: 1fr 1fr; }
+  .cards.c3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: var(--panel); border: 1px solid #2c3347;
+    border-radius: 14px; padding: 22px 26px;
+  }
+  .card h3 { font-size: 25px; margin-bottom: 10px; }
+  .card p, .card li { font-size: 20px; line-height: 1.45; }
+  .card ul li { margin-bottom: 10px; }
+
+  /* tables */
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 16px 20px; font-size: 22px; }
+  th {
+    font-family: var(--mono); font-size: 17px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--accent2);
+    border-bottom: 2px solid var(--accent);
+  }
+  td { border-bottom: 1px solid #2c3347; }
+  tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--mono); }
+
+  /* terminal block */
+  .terminal {
+    background: #0b0e15; border: 1px solid #2c3347; border-radius: 12px;
+    padding: 24px 28px; font-family: var(--mono); font-size: 19px;
+    line-height: 1.7; color: #cdd6e6;
+  }
+  .terminal .cmd::before { content: "$ "; color: var(--good); }
+  .terminal .comment { color: #5b6478; }
+
+  /* architecture diagram bits */
+  .arch { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .arch-row { display: flex; gap: 20px; align-items: stretch; justify-content: center; }
+  .node {
+    background: var(--panel); border: 2px solid #3a4460; border-radius: 12px;
+    padding: 14px 22px; text-align: center; min-width: 150px;
+  }
+  .node .t { font-weight: 700; font-size: 21px; }
+  .node .s { font-family: var(--mono); font-size: 15px; color: var(--muted); margin-top: 4px; }
+  .node.tool { border-color: var(--accent); background: #241d3d; }
+  .node.hot { border-color: var(--accent2); background: #12293d; }
+  .arrow { color: var(--muted); font-size: 34px; line-height: 1; padding: 10px 0; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+
+  /* title slide */
+  .title-slide { justify-content: center; }
+  .title-slide h1 { font-size: 84px; }
+  .title-badge {
+    font-family: var(--mono); color: var(--accent2); font-size: 22px;
+    margin-bottom: 26px; letter-spacing: 2px;
+  }
+  .title-slide .sub { font-size: 30px; max-width: 900px; }
+  .title-meta { margin-top: 70px; font-size: 22px; color: var(--muted); }
+
+  .end h1 { font-size: 72px; }
+  .small-note { font-size: 18px; color: var(--muted); }
+
+  /* big pull-quote line */
+  .pull {
+    font-size: 34px; line-height: 1.35; font-weight: 600;
+    max-width: 1080px; margin-top: 32px;
+  }
+  .pull .hl { color: var(--accent2); }
+
+  /* chart image (db-engines screenshot) */
+  .chart-figure {
+    margin: 8px 0 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .chart-figure img {
+    max-height: 240px;   /* native 958x400, scaled down slightly to fit */
+    width: auto;
+    height: auto;
+    border: 1px solid #2c3347;
+    border-radius: 12px;
+  }
+  .chart-caption {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+
+  /* joke / quote slide */
+  .quote-slide { 
+    justify-content: center; 
+    align-items: center;
+    padding: 60px 120px;
+  }
+  .quote-wrap {
+    max-width: 1100px;
+    position: relative;
+    padding: 10px;
+  }
+  .quote-open { 
+    position: absolute;
+    left: -70px;
+    top: -50px;
+    font-size: 180px; 
+    color: var(--accent); 
+    line-height: 1; 
+    font-family: Georgia, serif; 
+    opacity: 0.8;
+  }
+  .quote-close { 
+    position: absolute;
+    right: -70px;
+    bottom: -70px;
+    font-size: 180px; 
+    color: var(--accent); 
+    line-height: 1; 
+    font-family: Georgia, serif; 
+    opacity: 0.8;
+  }
+  .quote-body { 
+    font-size: 48px; 
+    line-height: 1.3; 
+    font-weight: 600; 
+    margin: 60px 0;
+    text-align: center;
+  }
+  .quote-body .hl { color: var(--accent2); }
+  .quote-body .tm {
+    font-size: 28px; 
+    vertical-align: super; 
+    color: var(--muted);
+  }
+  .quote-attr { 
+    margin-top: 60px; 
+    font-family: var(--mono); 
+    font-size: 22px; 
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<section class="slide title-slide">
+  <div class="title-badge">$ ssh conf-attendee@db-stack — welcome</div>
+  <h1>We got RDS at home<span style="color:var(--accent)">.</span></h1>
+  <p class="sub">Building an enterprise-grade database stack<br>using only open source software</p>
+  <p class="title-meta">
+    Nikos Segkos · FOSSCOMM 2026<br>
+    <span class="dim">25ish min talk + Q&amp;A </span>
+  </p>
+</section>
+
+<section class="slide">
+  <div class="kicker">Before we start</div>
+  <h2>Safe harbor statement</h2>
+  <div class="card" style="padding:36px 40px;">
+    <ul>
+      <li>The views and opinions expressed in this talk are <strong>my own</strong> and do not necessarily reflect those of my employer or any organization I'm affiliated with.</li>
+      <li>All trademarks, product names, and logos referenced are the property of their respective owners, and are used for identification purposes only.</li>
+      <li>Figures and experiences shared are from <strong>specific workloads and environments</strong>; your results will vary.</li>
+      <li>Nothing here constitutes production, legal, or financial advice — test everything in <em>your</em> environment before trusting it.</li>
+      <li>No databases were harmed beyond repair during the making of this stack. Restores were verified.</li>
+    </ul>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">02</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">$ whoami</div>
+  <h2>Hi, I'm Nikos 👋</h2>
+  <div class="cards c2">
+    <div class="card">
+      <h3>What I've been doing</h3>
+      <ul>
+        <li>Database Reliability Engineer at Proton — 6 years</li>
+        <li>Previously Oracle DBA at CERN</li>
+        <li>~10 years working with databases of all shapes and sizes</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Why this talk</h3>
+      <ul>
+        <li>I like databases more than is professionally advisable</li>
+        <li>I believe the DB space is still lagging on OSS adoption and use</li>
+	<li>I enjoy doing things the "hard" way</li>
+     </ul>
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">03</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The state of play</div>
+  <h2>Open source won the decade —<br>then got <span class="accent">re-packaged</span></h2>
+   <figure class="chart-figure">
+    <img src="media/db-engines.png" alt="DB-Engines ranking trends: open source DBMSs steadily gaining popularity over the last decade">
+  </figure>
+  <p class="chart-caption">Source: DB-Engines Ranking Trend — db-engines.com</p>
+  <p class="pull" style="font-size:28px; margin-top:20px;">Increasingly, that software reaches you only through a managed wrapper.<br>Managed services are becoming the new <span class="hl">closed source</span>.</p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">04</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The pain</div>
+  <h2>Where managed databases hurt</h2>
+  <div class="cards c2">
+    <div class="card">
+      <h3>Money</h3>
+      <p>Premium instances, storage, IOPS, snapshots, egress. Compounds with growth.</p>
+    </div>
+    <div class="card">
+      <h3>Freedom</h3>
+      <p>Fixed sizes, engine versions, parameters — someone else decides.</p>
+    </div>
+    <div class="card">
+      <h3>Vendor lock-in</h3>
+      <p>Migrating out is measured in quarters — and the door gets heavier.</p>
+    </div>
+    <div class="card">
+      <h3>Trust</h3>
+      <p>Sometimes your prod data get leaked because your <em>provider</em> got breached — see the TiDB Cloud incident earlier this month.</p>
+    </div>
+  </div>
+  <p class="dim" style="margin-top:26px;">The question is: <em>"What does RDS actually do for you — and can you do it yourself?"</em></p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">05</span></div>
+</section>
+
+<section class="slide quote-slide">
+  <div class="quote-wrap">
+    <span class="quote-open">"</span>
+    <p class="quote-body">
+      Just like the cloud is someone else's computer,<br>
+      a managed service is just <span class="hl">some&nbsp;guy<span class="tm">™</span></span><br>
+      doing it for you.
+    </p>
+    <span class="quote-close">"</span>
+    <p class="quote-attr">— ancient ops wisdom, origin unknown</p>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">06</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Reverse-engineering RDS</div>
+  <h2>What are you <span class="accent">actually</span> buying?</h2>
+  <table>
+    <tr><th>Capability</th><th>What it means in practice</th></tr>
+    <tr><td>Database engine</td><td>MySQL (or Postgres, etc.), patched and version-managed</td></tr>
+    <tr><td>High availability</td><td>Replication, automated failover, a standby that takes over</td></tr>
+    <tr><td>Traffic routing</td><td>Two endpoints, read/write splitting, connections pooled via RDS Proxy</td></tr>
+    <tr><td>Backups &amp; PITR</td><td>Snapshots, binlog retention, point-in-time recovery</td></tr>
+    <tr><td>Monitoring</td><td>Metrics, slow query visibility, alerts to a dashboard</td></tr>
+    <tr><td>Online maintenance</td><td>Schema changes and upgrades with minimal downtime</td></tr>
+  </table>
+  <p class="dim" style="margin-top:26px;">None of these are magic. They're software. Software you can run.</p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">07</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The big idea</div>
+  <h2>Six open source tools, one managed DB</h2>
+  <table>
+    <tr><th>RDS capability</th><th>Open source tool</th><th>License</th></tr>
+    <tr><td>Database engine</td><td class="mono">MySQL</td><td>GPLv2</td></tr>
+    <tr><td>Traffic routing &amp; pooling</td><td class="mono">ProxySQL</td><td>GPLv3</td></tr>
+    <tr><td>HA &amp; automated failover</td><td class="mono">Orchestrator</td><td>Apache 2.0</td></tr>
+    <tr><td>Hot backups &amp; PITR</td><td class="mono">Percona XtraBackup</td><td>GPLv2</td></tr>
+    <tr><td>Monitoring &amp; observability</td><td class="mono">PMM (Percona Monitoring &amp; Mgmt)</td><td>AGPL / Apache</td></tr>
+    <tr><td>Online schema changes</td><td class="mono">gh-ost</td><td>MIT*</td></tr>
+  </table>
+  <p class="small-note" style="margin-top:22px;">* Verify licenses against the versions you ship — check upstream LICENSE files.</p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">08</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The blueprint</div>
+  <h2>The stack, end to end</h2>
+  <div class="arch">
+    <div class="arch-row">
+      <div class="node"><div class="t">Application</div><div class="s">connect via DNS alias</div></div>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="arch-row">
+      <div class="node hot"><div class="t">ProxySQL</div><div class="s">routing · pooling · failover aware</div></div>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="arch-row">
+      <div class="node hot"><div class="t">MySQL Primary</div><div class="s">writes</div></div>
+      <div class="arrow">⟵ replicates ⟶</div>
+      <div class="node hot"><div class="t">MySQL Replicas ×N</div><div class="s">reads · candidates</div></div>
+    </div>
+  </div>
+  <div class="arch-row" style="margin-top:34px;">
+    <div class="node tool"><div class="t">Orchestrator</div><div class="s">topology · failover</div></div>
+    <div class="node tool"><div class="t">XtraBackup</div><div class="s">backups · PITR</div></div>
+    <div class="node tool"><div class="t">PMM</div><div class="s">metrics · query analytics</div></div>
+    <div class="node tool"><div class="t">gh-ost</div><div class="s">online DDL</div></div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">09</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 1 of 6 </div>
+  <h2>MySQL is fine, actually</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+	<li><strong>Still the "best" OLTP engine around</strong></li>
+        <li><strong>GTID replication</strong> &rarr; every transaction gets a global ID</li>
+        <li><strong>Semi-sync replication</strong> &rarr; primary waits for a replica ack; but a dead replica doesn't take prod down</li>
+      </ul>
+    </div>
+    <div class="terminal">
+      <div class="comment"># my.cnf — the load-bearing lines</div>
+      gtid_mode = ON
+      <br>
+      enforce_gtid_consistency = ON
+      <br>
+      <div class="comment">## durability floor</div>
+      rpl_semi_sync_source_enabled = 1
+      <br>
+      rpl_semi_sync_replica_enabled = 1
+      <br>
+      <div class="comment">## know thy queries</div>
+      slow_query_log = ON
+      <br>
+      long_query_time = 0.5
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 2 of 6</div>
+  <h2>ProxySQL: one front door</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Connection pooling</strong> &rarr; thousands of client conns, a fraction on the backend</li>
+        <li><strong>Read/write split</strong> &rarr; queries hit hostgroups, not hosts</li>
+        <li><strong>Routing rules</strong> &rarr; analytics to a replica, users pinned anywhere</li>
+        <li><strong>Fast failure ejection</strong> &rarr; dead backends drained in milliseconds</li>
+      </ul>
+    </div>
+    <div class="terminal">
+      <div class="comment"># hostgroups: 10 = writes, 20 = reads</div>
+      INSERT INTO mysql_replication_hostgroups
+      <br>
+      &nbsp;(writer_hostgroup, reader_hostgroup)
+      <br>
+      &nbsp;VALUES (10, 20);
+      <div class="comment"># users go where they belong</div>
+      INSERT INTO mysql_users
+      <br>
+      &nbsp;(username, default_hostgroup)
+      <br>
+      &nbsp;VALUES ('app_rw', 10),
+      <br>
+      &nbsp;('svc_readonly', 20);
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 2 of 6 — continued</div>
+  <h2>ProxySQL meets failover</h2>
+  <div class="cards c2">
+    <div class="card">
+      <h3>The trick</h3>
+      <p>Apps talk to <strong>hostgroups</strong>, never hostnames. "Primary" is a job description, not an identity.</p>
+      <p style="margin-top:14px;">When a new primary is promoted, hostgroup membership changes. The app's connection string does not.</p>
+    </div>
+    <div class="card">
+      <h3>Why this beats a DNS hop</h3>
+      <ul>
+        <li>No TTL roulette — routing flips at the proxy</li>
+        <li>Health checks watch lag &amp; read-only state</li>
+        <li>Multiplexing prevents the reconnect stampede</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">12</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 3 of 6</div>
+  <h2>Orchestrator: your stack's map and brain</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Live topology discovery</strong> &rarr; polls replication, builds the graph</li>
+        <li><strong>Finds broken trees</strong> before you do</li>
+        <li><strong>Refactors topology online</strong> &rarr; move replicas, fix orphans, via UI or API</li>
+        <li><strong>Hooks everywhere</strong> &rarr; can re-point ProxySQL on failover</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The topology view</h3>
+      <div class="terminal" style="font-size:17px;">
+        cluster: prod-main
+	<br>
+        └─ mysql-primary01  ✔
+	<br>
+        &nbsp;&nbsp;&nbsp;├─ mysql-replica01 ✔ lag: 0s
+	<br>
+        &nbsp;&nbsp;&nbsp;├─ mysql-replica02 ✔ lag: 1s
+	<br>
+        &nbsp;&nbsp;&nbsp;└─ mysql-replica03 ⚠ lag: 340s
+      </div>
+      <p class="small-note" style="margin-top:14px;">Live state, browsable, REST API.</p>
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">13</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 3 of 6 — the main event</div>
+  <h2>Anatomy of an automated failover</h2>
+  <table>
+    <tr><th>#</th><th>Step</th><th>Actor</th></tr>
+    <tr><td class="mono">1</td><td>Primary misses health checks &rarr; failure declared</td><td class="mono">Orchestrator</td></tr>
+    <tr><td class="mono">2</td><td>Best candidate picked: least lag, deepest lineage</td><td class="mono">Orchestrator</td></tr>
+    <tr><td class="mono">3</td><td>Replica promoted; others re-pointed to it</td><td class="mono">Orchestrator</td></tr>
+    <tr><td class="mono">4</td><td>New primary joins writer hostgroup</td><td class="mono">Orchestrator &rarr; ProxySQL</td></tr>
+    <tr><td class="mono">5</td><td>Alerts fire, audit trail recorded</td><td class="mono">Hooks / humans</td></tr>
+  </table>
+  <p class="dim" style="margin-top:24px;">MTTR is now <em>a property of your config</em>, not an abstract idea.</p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">14</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 4 of 6</div>
+  <h2>Percona XtraBackup: for all your backup needs</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Physical, hot</strong> &rarr; copies InnoDB files while serving traffic</li>
+        <li><strong>Consistent</strong> &rarr; snapshot + binlog position captured together</li>
+        <li><strong>Stream &amp; compress</strong> &rarr; piped straight to object storage</li>
+        <li><strong>Incrementals</strong> &rarr; full weekly, incremental daily</li>
+      </ul>
+    </div>
+    <div class="terminal">
+      <div class="cmd">xtrabackup --backup \</div>
+      &nbsp;&nbsp;--target-dir=/backup/full
+      <div class="cmd">xtrabackup --prepare \</div>
+      &nbsp;&nbsp;--target-dir=/backup/full
+      <div class="comment"># stream + compress + encrypt</div>
+      xtrabackup --backup --stream=xbstream \
+      <br>
+      | gzip | openssl enc ... \
+      <br>
+      | aws s3 cp - s3://bucket/mysql/
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">15</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 4 of 6 — continued</div>
+  <h2>Point-in-time recovery</h2>
+  <div class="cards c2" style="margin-bottom:28px;">
+    <div class="card">
+      <h3>How PITR works</h3>
+      <p>Restore the last physical backup &rarr; replay binlogs from the recorded position &rarr; stop at the exact timestamp of regret.</p>
+      <p style="margin-top:12px;"><code class="inline">mysqlbinlog --start-position=… | mysql</code></p>
+    </div>
+    <div class="card">
+      <h3>What RDS was doing quietly</h3>
+      <p>Binlog retention and storage is now your pipeline. Gaps in binlogs are gaps in your recovery story.</p>
+    </div>
+  </div>
+  <p><strong class="strong-bad">A backup you have never restored is just a concept.</strong><span class="dim"><br> Drill restores before you need to do one during a prod incident.</span></p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">16</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 5 of 6</div>
+  <h2>PMM: for all your observability needs</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Curated Grafana dashboards</strong> &rarr; MySQL, OS, replication, ProxySQL</li>
+        <li><strong>Query Analytics</strong> &rarr; slow queries ranked, trended, digest-level</li>
+        <li><strong>Replication lag visibility</strong> &rarr; feeds routing &amp; alerting</li>
+        <li><strong>Self-hosted</strong> &rarr; query texts stay in your perimeter</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Your morning dashboard</h3>
+      <div class="terminal" style="font-size:17px;">
+        ✔ replication lag: all nodes &lt; 2s
+	<br>
+        ✔ QPS steady vs 7-day baseline
+	<br>
+	⚠ top digest:&nbsp;SELECT ... ORDER BY RAND()&nbsp;😬
+	<br>
+	✔ ProxySQL pool: 94% cached
+      </div>
+      <p class="small-note" style="margin-top:14px;">Half of ops is noticing early.</p>
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">17</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Component 6 of 6</div>
+  <h2>gh-ost — schema changes, no drama</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Migrates via binlog streaming</strong> &rarr; shadow table, no triggers, nothing extra on the hot path</li>
+        <li><strong>Throttles against your workload</strong> &rarr; production traffic always wins</li>
+        <li><strong>Interactive cutover</strong> &rarr; inspect, pause, resume, or bail anytime</li>
+	<li><strong>Big ALTERs in daylight</strong></li>
+      </ul>
+    </div>
+    <div class="terminal">
+      <div class="cmd">gh-ost \</div>
+      &nbsp;&nbsp;--database=billing \
+      <br>
+      &nbsp;&nbsp;--table=invoices \
+      <br>
+      &nbsp;&nbsp;--alter="ADD COLUMN region CHAR(2)" \
+      <br>
+      &nbsp;&nbsp;--allow-on-master \
+      <br>
+      &nbsp;&nbsp;--max-load=Threads_running=50
+      <br>
+      &nbsp;&nbsp;...
+      <div class="comment"># panic button, on demand</div>
+      <div class="cmd">echo throttle | socat ...</div>
+    </div>
+  </div>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">18</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">The receipt</div>
+  <h2>What you just adopted</h2>
+  <table>
+    <tr><th>RDS does this invisibly</th><th>Your problem now</th></tr>
+    <tr><td>Engine patching &amp; CVE response</td><td>You track, test, and roll patches</td></tr>
+    <tr><td>Version upgrades</td><td>You orchestrate rolling / replica-swap upgrades</td></tr>
+    <tr><td>Backups that "just happen"</td><td>You build the pipeline <strong>and</strong> the drill calendar</td></tr>
+    <tr><td>Support escalation</td><td>You're the escalation. Community + stubbornness</td></tr>
+    <tr><td>Capacity headroom</td><td>You plan growth before it hurts</td></tr>
+    <tr><td>Change management</td><td>You prove to auditors the knobs are controlled</td></tr>
+  </table>
+  <p class="dim" style="margin-top:24px;">This stack is a <em>team capability</em>, not a weekend script.</p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">19</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Some tips</div>
+  <h2>These still apply regardless of what your stack ends up looking like</h2>
+  <ul style="max-width: 1020px;">
+    <li><strong>Build the monitoring first.</strong> PMM goes in before the fancy failover.</li>
+    <li><strong>Rehearse failure on purpose.</strong> Kill the primary in staging weekly until failover is routine.</li>
+    <li><strong>Hostgroups over hostnames, everywhere.</strong> One hardcoded server name = one lost limb.</li>
+    <li><strong>Backups are a restore product.</strong> Ship the pipeline and the drill in the same PR.</li>
+    <li><strong>The hard part was never the software.</strong> Adopting a coherent process around all these tools is the real challenge</li>
+  </ul>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">20</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Steal this stack</div>
+  <h2>Everything referenced today</h2>
+  <table>
+    <tr><th>Tool</th><th>Home</th></tr>
+    <tr><td class="mono">MySQL</td><td class="mono">github.com/mysql/mysql-server</td></tr>
+    <tr><td class="mono">ProxySQL</td><td class="mono">github.com/sysown/proxysql</td></tr>
+    <tr><td class="mono">Orchestrator</td><td class="mono">github.com/proxysql/orchestrator</td></tr>
+    <tr><td class="mono">XtraBackup</td><td class="mono">github.com/percona/percona-xtrabackup</td></tr>
+    <tr><td class="mono">PMM</td><td class="mono">github.com/percona/pmm</td></tr>
+    <tr><td class="mono">gh-ost</td><td class="mono">github.com/github/gh-ost</td></tr>
+  </table>
+  <p class="small-note" style="margin-top:22px;">Slides: github.com/nksegos/slides/fosscomm2026/ </p>
+  <div class="footer"><span>FOSSCOMM 2026 · we got RDS at home</span><span class="pagenum">21</span></div>
+</section>
+
+<!-- NOTES S22: Close hard, then open Q&A. Leave up during questions. -->
+<section class="slide title-slide end">
+  <div class="title-badge">// exit code 0</div>
+  <h1>You've had RDS at home<br><span style="color:var(--accent)">the whole time.</span></h1>
+  <p class="sub">Questions?</p>
+  <p class="title-meta">
+    Nikos Segkos · nikos@server-down.com <br>
+    <span class="dim">Thank you — and may your failovers be boring</span>
+  </p>
+</section>
+
+</body>
+</html>
